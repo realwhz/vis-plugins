@@ -6,7 +6,7 @@ local function find_tags(path)
 			local file = io.open(filename, 'r')
 
 			if file ~= nil then
-                file:close()
+				file:close()
 				return filename, prefix
 			end
 		end
@@ -27,52 +27,35 @@ end
 
 local function search(word, full)
 	local filepath = vis.win.file.path
-    local records = {}
+	local records = {}
 	local filename, pattern
-    local tagfile, prefix = find_tags(filepath)
-    local cmd = string.format('readtags -t %s %s', tagfile, word)
-    local tmp = io.popen(cmd)
-    local i = 0
-    for line in tmp:lines() do
-        records[i] = line
-        i = i + 1
-    end
-    tmp:close()
-
-    if full == false then
-        if records ~= nil then
-            filename, pattern = string.match(records[0], "[^\t]+\t+([^\t]+)\t+(.*)")
-            return prefix .. filename, pattern
-        end
-    else
-        return records
-    end
+	local tagfile, prefix = find_tags(filepath)
+	local cmd = string.format('readtags -t %s %s', tagfile, word)
+	local tmp = io.popen(cmd)
+	local i = 0
+	for line in tmp:lines() do
+		records[i] = line
+		i = i + 1
+	end
+	tmp:close()
+	return records, i, prefix
 end
 
 vis:map(vis.modes.NORMAL, '<C-]>', function(keys)
-	local line = vis.win.cursor.line
-	local col = vis.win.cursor.col
+	local line = vis.win.selection.line
+	local col = vis.win.selection.col
 	local query = get_query(vis.win.file.lines[line], col)
 	
-	local filename, pattern = search(query, false)
-	if filename ~= nil and pattern ~= nil then
-		vis:command(string.format('open %s', filename))
+	local out, sz, prefix = search(query)
+	if sz == 1 then
+		local filename, pattern = string.match(out[0], "[^\t]+\t+([^\t]+)\t+(.*)")
+		local cmd = string.format("open '%s'", prefix..filename)
+		vis:command(cmd)
 		vis:command(pattern)
-	else
-        --vis:info(string.format('Tag not found: %s', query))
-	end
-end)
-
-vis:map(vis.modes.NORMAL, 'g<C-]>', function(keys)
-	local line = vis.win.cursor.line
-	local col = vis.win.cursor.col
-	local query = get_query(vis.win.file.lines[line], col)
-	
-	local out = search(query, true)
-	if out ~= nil then
+	elseif sz > 1 then
 		vis:command("new")
-        vis.win.file:insert(0, table.concat(out, "\n"))
-        vis:command("0")
+		vis.win.file:insert(0, table.concat(out, "\n"))
+		vis:command("0")
 	else
 		vis:info(string.format('Tag not found: %s', query))
 	end
